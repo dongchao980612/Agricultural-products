@@ -1,0 +1,178 @@
+{% extends "app/base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="row g-0">
+            <div class="col-md-5">
+                {% if product.image.name|slice:":4" == "http" %}
+                    <img src="{{ product.image }}" class="img-fluid rounded-start" alt="{{ product.name }}" style="max-height: 500px; object-fit: cover;" onerror="this.src='/static/images/no-image.png'; this.onerror='';">
+                {% else %}
+                    <img src="/media/{{ product.image }}" class="img-fluid rounded-start" alt="{{ product.name }}" style="max-height: 500px; object-fit: cover;" onerror="this.src='/static/images/no-image.png'; this.onerror='';">
+                {% endif %}
+            </div>
+            <div class="col-md-7">
+                <div class="card-body">
+                    <h2 class="card-title mb-4">
+                        <i class="bi bi-box-seam"></i> {{ product.name }}
+                    </h2>
+
+                    <div class="alert alert-primary">
+                        <h4 class="alert-heading">
+                            <i class="bi bi-currency-yen"></i> 价格信息
+                        </h4>
+                        <p class="display-6 text-danger fw-bold">¥{{ product.price }}</p>
+                    </div>
+
+                    <div class="border-bottom pb-3 mb-3">
+                        <h4><i class="bi bi-card-text"></i> 商品描述</h4>
+                        <p class="lead">{{ product.description }}</p>
+                    </div>
+
+                    <div class="alert alert-success">
+                        <h4><i class="bi bi-geo-alt-fill"></i> 产地溯源</h4>
+                        <p class="fs-5">{{ product.origin }}</p>
+                    </div>
+
+                    <div class="alert alert-{% if product.stock > 10 %}info{% elif product.stock > 0 %}warning{% else %}danger{% endif %}">
+                        <h4><i class="bi bi-box-seam"></i> 库存信息</h4>
+                        <p class="fs-5">当前库存: {{ product.stock }} 件</p>
+                        <p class="fs-5">累计销量: {{ product.xiaoliang|default:"0" }} 件</p>
+                    </div>
+
+                    <div class="d-flex mt-3">
+                        <a href="{% url 'products' %}" class="btn btn-outline-primary me-2">
+                            <i class="bi bi-arrow-left"></i> 返回商品列表
+                        </a>
+
+                        <button onclick="addToCart({{ product.id }})" class="btn btn-success">
+                            <i class="bi bi-cart-plus"></i> 加入购物车
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 评论区 -->
+    <div class="card mt-4">
+        <div class="card-header bg-light">
+            <h3><i class="bi bi-chat-left-text"></i> 商品评论</h3>
+        </div>
+        <div class="card-body">
+            <!-- 评论表单 -->
+            <form method="post" class="mb-4">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="id_content" class="form-label">发表评论</label>
+                    {{ comment_form.content }}
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-send"></i> 提交评论
+                </button>
+            </form>
+
+            <hr>
+
+            <!-- 评论列表 -->
+            {% if comments %}
+                <div class="comments-list">
+                    {% for comment in comments %}
+                        <div class="comment card mb-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-person-circle"></i> {{ comment.user.username }}
+                                </div>
+                                <small class="text-muted">{{ comment.created_at|date:"Y-m-d H:i" }}</small>
+                            </div>
+                            <div class="card-body">
+                                <p class="card-text">{{ comment.content }}</p>
+
+                                <!-- 回复按钮 -->
+                                <button class="btn btn-sm btn-outline-secondary reply-btn"
+                                        data-comment-id="{{ comment.id }}">
+                                    <i class="bi bi-reply"></i> 回复
+                                </button>
+
+                                <!-- 回复表单 (默认隐藏) -->
+                                <div class="reply-form mt-2" id="reply-form-{{ comment.id }}" style="display: none;">
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="comment_id" value="{{ comment.id }}">
+                                        <div class="mb-2">
+                                            {{ reply_form.content }}
+                                        </div>
+                                        <button type="submit" class="btn btn-sm btn-primary">
+                                            <i class="bi bi-send"></i> 提交回复
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <!-- 回复列表 -->
+                                {% if comment.replies.all %}
+                                    <div class="replies mt-3">
+                                        {% for reply in comment.replies.all %}
+                                            <div class="reply card mb-2">
+                                                <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                                                    <div>
+                                                        <i class="bi bi-person-circle"></i> {{ reply.user.username }}
+                                                    </div>
+                                                    <small class="text-muted">{{ reply.created_at|date:"Y-m-d H:i" }}</small>
+                                                </div>
+                                                <div class="card-body py-2">
+                                                    <p class="card-text mb-0">{{ reply.content }}</p>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 暂无评论，快来发表第一条评论吧！
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+// 添加到购物车
+function addToCart(productId) {
+    fetch(`/cart/add/${productId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        }
+    }).then(response => {
+        if(response.ok) {
+            alert('商品已添加到购物车');
+        } else {
+            alert('添加失败，请稍后再试');
+        }
+    }).catch(error => {
+        console.error('Error:', error);
+    });
+}
+
+// 显示/隐藏回复表单
+document.querySelectorAll('.reply-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const commentId = this.getAttribute('data-comment-id');
+        const replyForm = document.getElementById(`reply-form-${commentId}`);
+
+        if (replyForm.style.display === 'none') {
+            replyForm.style.display = 'block';
+        } else {
+            replyForm.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}
